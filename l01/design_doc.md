@@ -29,11 +29,9 @@ Eg: T=3, R=10, then
   - worker[1]->reduceTask[1/4/7]
   - worker[2]->reduceTask[2/5/8]
 
+When worker[x] crashes, reduce task[x, x+T,...] need redo, which means   
+the worker who accomplishes its reduce task can pick the crashed one.
 
-- client  →   server   
-  RPC：ReduceTaskAssign   
-  args:
-  reply:   
 
 
   
