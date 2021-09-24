@@ -1,4 +1,4 @@
-flow:
+worker flow:
 
 - client  →   server   
   RPC：AddWorker   
@@ -15,6 +15,7 @@ flow:
   args：MapTaskEmitReq{intmdFilename}   
   reply: nil   
 
+************************************************************************
 // ******Wait all map tasks done****** //   
 // intermediate files: mr-X-Y, with X=mapId, Y=reduceId  //   
 // mapId is the index of files, reduceId is hash(filename)%nReduce //    
@@ -32,7 +33,8 @@ Eg: T=3, R=10, then
 When worker[x] crashes, reduce task[x, x+T,...] need redo, which means   
 the worker who accomplishes its reduce task can pick the crashed one.
 
-
+*That is*, before every worker exits, it should check if there are remaining
+work left.
 
   
   
