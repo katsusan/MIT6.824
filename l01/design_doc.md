@@ -35,6 +35,19 @@ the worker who accomplishes its reduce task can pick the crashed one.
 
 *That is*, before every worker exits, it should check if there are remaining
 work left.
+************************************************************************
+Q&A:
+1. Worker Failure   
+Q: How do keepalive work here?   
+A: In paper Jeff decided that `The master pings every worker periodically`,   
+   but in lab we can exploit the original RPC communication, letting worker
+   doing RPC call periodically to show it is alive.   
+   This is different from paper but doesn't need to establish an extra transport
+   layer, thus decreases the complexity of the lab.   
+   
+2. map work failure   
+3. reduce work failure   
+
 
   
   
