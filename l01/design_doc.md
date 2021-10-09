@@ -40,14 +40,20 @@ Q&A:
 1. Worker Failure   
 Q: How do keepalive work here?   
 A: In paper Jeff decided that `The master pings every worker periodically`,   
-   but in lab we can exploit the original RPC communication, letting worker
-   doing RPC call periodically to show it is alive.   
-   This is different from paper but doesn't need to establish an extra transport
+   but in lab we can exploit the original RPC communication, letting worker    
+   doing RPC call periodically to show it is alive.      
+   This is different from paper but doesn't need to establish an extra transport   
    layer, thus decreases the complexity of the lab.   
    
 2. map work failure   
-3. reduce work failure   
+  Paper 3.3   
+  Completed map tasks are re-executed on a failure because their output is stored   
+  on the local disk(s) of the failed machine and is therefore inaccessible.
 
+3. reduce work failure   
+  Paper 3.3   
+  Completed reduce tasks do not need to be re-executed since their output is stored   
+  in a global file system.
 
   
   
