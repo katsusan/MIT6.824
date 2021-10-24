@@ -18,7 +18,7 @@ worker flow:
 ************************************************************************
 // ******Wait all map tasks done****** //   
 // intermediate files: mr-X-Y, with X=mapId, Y=reduceId  //   
-// mapId is the index of files, reduceId is hash(filename)%nReduce //    
+// mapId is the index of files, reduceId is hash(word)%nReduce //    
 
 Assuming there are T workers and R reduce tasks,   
 each worker should pick at most [R/T]+1 reduce tasks.   
@@ -48,7 +48,7 @@ A: In paper it is decided that `The master pings every worker periodically`,
 2. map work failure   
   Paper 3.3   
   Completed map tasks are re-executed on a failure because their output is stored   
-  on the local disk(s) of the failed machine and is therefore inaccessible.
+  on the local disk(s) of the failed machine and is therefore inaccessible.    
   We use Coordinator.mapTaskAssignation to record map task assigning.
 
 3. reduce work failure   
