@@ -8,13 +8,23 @@ worker flow:
 - client  →   server   
   RPC: MapTaskAssign   
   args: nil   
-  reply: MapTask{Filename, mapTaskId}   
+  reply: MapTask{Filename, mapTaskId, mapTaskDone}   
 
 - client  →   server   
-  RPC：EmitMapTask   
-  args：MapTaskEmitReq{intmdFilename}   
-  reply: nil   
+  RPC：MapTaskSubmit   
+  args：MapTaskSubmitReq{intmdFilename, taskId}   
+  reply: MapTaskSubmitResp{Errmsg}   
 
+- client  →   server 
+  RPC: FinishReduce   
+  args: ReduceTaskAssignReq{WorkerId}   
+  reply: ReduceTaskAssignResp{AssignId, ReduceTaskAllDone}   
+
+- client →    server   
+  RPC: ReduceTaskSubmit   
+  args: ReduceTaskSubmitReq{WorkerId, AssignId}   
+  reply: CommonResp{}
+  
 ************************************************************************
 // ******Wait all map tasks done****** //   
 // intermediate files: mr-X-Y, with X=mapId, Y=reduceId  //   
