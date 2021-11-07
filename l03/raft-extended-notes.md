@@ -192,20 +192,115 @@ Raft maintains the following properties, which together constitute the Log Match
 - If two entries in different logs have the same index and term, then they store the same command.
 - If two entries in different logs have the same index and term, then the logs are identical in all preceding entries.
 
+The first property follows from the fact that a leader creates at most one entry with a given log index in a given term,   
+and log entries never change their position in the log.   
+// 第一条源于这样一个事实：leader在给定term的给定log index上只能创建最多一条log entry，并且log entry在日志序列中永远不会改变位置。   
 
+The second property is guaranteed by a simple consistency check performed by AppendEntries. When sending an AppendEntries   
+RPC, the leader includes the index and term of the entry in its log that immediately precedes the new entries.   
+If the follower does not find an entry in its log with the same index and term, then it refuses the new entries.    
+// 第二条由AppendEntries执行时的简单一致性check保证。leader在发送AppendEntries时会附加新条目之前的index和term，   
+// 如果follower在自己的log里找不到该entry则拒绝添加该条目。   
 
+-------------------------------------------------------------
+![image](https://user-images.githubusercontent.com/11537821/140494659-e7285296-e94a-46b0-8a0d-291bc12bedac.png)
 
+In Raft, the leader handles inconsistencies by forcing the followers’ logs to duplicate its own. This means that   
+conflicting entries in follower logs will be overwritten with entries from the leader’s log.   
+// Raft里leader强制follower复制自己的log来达成一致性。也就是follower里冲突的log会被leader里对应的log覆盖。   
 
+[**solution**]   
+The leader maintains a nextIndex for each follower, which is the index of the next log entry the leader will   
+send to that follower.  When a leader first comes to power, it initializes all nextIndex values to the index   
+just after the last one in its log (11 in Figure 7).   
+// leader为每个follower维护一个nextIndex，代表下一条发送给follower的log index。   
+// leader选举成功后，会初始化nextIndex为自己log的下一条index。   
+**↓**    
+If a follower’s log is inconsistent with the leader’s, the AppendEntries consistency check will fail in the next AppendEntries RPC.   
+// follower日志与leader不一致时，下次AppendEntries RPC会失败。   
+**↓**    
+After a rejection, the leader decrements nextIndex and retries the AppendEntries RPC.    
+**↓**    
+Eventually nextIndex will reach a point where the leader and follower logs match.   
+**↓**    
+When this happens, AppendEntries will succeed, which removes any conflicting entries in the follower’s log and appends   
+entries from the leader’s log (if any).   
+**↓**    
+Once AppendEntries succeeds, the follower’s log is consistent with the leader’s, and it will remain that way for the rest of the term.   
 
+[**Optimization**]   
+If desired, the protocol can be optimized to reduce the number of rejected AppendEntries RPCs.   
 
+For example, when rejecting an AppendEntries request, the follower can include the term of the conflicting entry and    
+the first index it stores for that term.   
 
+With this information, the leader can decrement nextIndex to bypass all of the conflicting entries in that term;   
+one AppendEntries RPC will be required for each term with conflicting entries, rather than one RPC per entry.   
+
+In practice, we doubt this optimization is necessary, since failures happen infrequently and it is unlikely that   
+there will be many inconsistent entries.   
+
+With this mechanism, a leader does not need to take any special actions to restore log consistency when it comes to   
+power. It just begins normal operation, and the logs automatically converge in response to failures of the AppendEntries   
+consistency check. A leader never overwrites or deletes entries in its own log.   
+
+This log replication mechanism exhibits the desirable consensus properties described in Section 2: Raft can accept,   
+replicate, and apply new log entries as long as a majority of the servers are up; in the normal case a new entry can   
+be replicated with a single round of RPCs to a majority of the cluster; and a single slow follower will not impact performance.   
 
 
 #### 5.4 Safety
 
+This section completes the Raft algorithm by adding a restriction on which servers may be elected leader.   
+
+The restriction ensures that the leader for any given term contains all of the entries committed in previous terms   
+(the Leader Completeness Property from Figure 3).   
+
 ##### 5.4.1 Election restriction
 
+In any leader-based consensus algorithm, the leader must eventually store all of the committed log entries.   
+
+Raft uses a simpler approach where it guarantees that all the committed entries from previous terms are present on   
+each new leader from the moment of its election, without the need to transfer those entries to the leader.   
+// Raft在选举时保证了new leader包含所有之前term已提交的entries，防止了选举成功后需要把这些entries传送给leader的工作。   
+
+This means that log entries only flow in one direction, *from leaders to followers*, and leaders never overwrite   
+existing entries in their logs.   
+// log entries的流向只从leader到follower，leader从不改写已提交的log。   
+
+Raft uses the voting process to prevent a candidate from winning an election unless its log contains all committed   
+entries. A candidate must contact a majority of the cluster in order to be elected, which means that every committed   
+entry must be present in at least one of those servers.   
+// Raft选举过程中会阻止不包含所有已提交log的candidate获选。candidate必须与集群中的大多数通信以赢得选举，意味着每条已提交的entry   
+// 必须存在于至少某台机器上。   
+
+If the candidate’s log is at least as up-to-date as any other log in that majority, then it will hold all the committed entries.    
+The RequestVote RPC implements this restriction: the RPC includes information about the candidate’s log, and the voter denies its    
+vote if its own log is more up-to-date than that of the candidate.   
+// 如果candidate的log至少新于任何大多数里的其它log，那么代表它包含了所有已提交的日志。   
+// RequestVote RPC实现了这个限制：RPC里包括了candidate的log的相关信息，voter拒绝承认那些比自己log还旧的candidate。   
+
+Raft determines which of two logs is more up-to-date by comparing the index and term of the last entries in the logs. If the logs    
+have last entries with different terms, then the log with the later term is more up-to-date. If the logs end with the same term, then   
+whichever log is longer is more up-to-date.   
+// Raft通过比较logs中最后一条entry的index和term来判断哪个log更新。   
+// 如果logs的最后一条entry的term不同，那么大一点的term代表更新；如果term相同则谁的log更长(多?)代表更新。   
+
+
 ##### 5.4.2 Committing entries from previous terms
+
+As described in Section 5.3, a leader knows that an entry from its current term is committed once that entry is stored   
+on a majority of the servers.   
+// 5.3节提到了leader知道一旦当前term的entry被大多数机器所存储则会被直接commit。   
+
+![image](https://user-images.githubusercontent.com/11537821/140638492-d041081e-78d9-40cb-b86e-4e1caae5e623.png)
+
+If a leader crashes before committing an entry, future leaders will attempt to finish replicating the entry. However, a leader   
+cannot immediately conclude that an entry from a previous term is committed once it is stored on a majority of servers.   
+// 如果leader在commit前crash，后面的leader将尝试去继续复制这个entry。
+
+
+##### 5.4.3 Safety argument
 
 #### 5.5 Follower and candidate crashes
 
