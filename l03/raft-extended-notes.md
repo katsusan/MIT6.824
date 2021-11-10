@@ -293,11 +293,35 @@ As described in Section 5.3, a leader knows that an entry from its current term 
 on a majority of the servers.   
 // 5.3节提到了leader知道一旦当前term的entry被大多数机器所存储则会被直接commit。   
 
-![image](https://user-images.githubusercontent.com/11537821/140638492-d041081e-78d9-40cb-b86e-4e1caae5e623.png)
+![figure 8](https://user-images.githubusercontent.com/11537821/140638492-d041081e-78d9-40cb-b86e-4e1caae5e623.png)
 
 If a leader crashes before committing an entry, future leaders will attempt to finish replicating the entry. However, a leader   
 cannot immediately conclude that an entry from a previous term is committed once it is stored on a majority of servers.   
-// 如果leader在commit前crash，后面的leader将尝试去继续复制这个entry。
+// 如果leader在commit前crash，后面的leader将尝试去继续复制这个entry。然而leader无法马上得知一个之前term的entry一旦被存储在大多数服务器上   
+// 的话是否被提交(?)。 Figure 8展示了一种情况，一条log entry被存储在大多数服务器了但仍然会被leader覆写。   
+
+[**solutions**]   
+To eliminate problems like the one in Figure 8, Raft never commits log entries from previous terms by counting replicas.   
+// 为了消除Figure 8中的问题，Raft通过计数副本的方法来来拒绝提交之前term的log entry。   
+
+Only log entries from the leader’s current term are committed by counting replicas; once an entry from the current term      
+has been committed in this way, then all prior entries are committed indirectly because of the Log Matching Property.   
+// 只有leader的当前term的log entry可以被提交(couting replicas?)。一旦当前term的一条entry按照这样的方法提交了，那么所有之前的entry   
+// 按照Log Matching Property也必须间接地被提交。   
+
+[**pros and cons**]   
+Raft incurs this extra complexity in the commitment rules because log entries retain their original term numbers when a leader   
+replicates entries from previous terms.   
+// 由于当leader从之前term复制entry的时候这些log entry必须维护它们原本的term number因此Raft这样做在提交规则里带来了额外的复杂度。   
+
+In other consensus algorithms, if a new leader rereplicates entries from prior “terms,” it must do so with its new “term number.”   
+Raft’s approach makes it easier to reason about log entries, since they maintain the same term number over time and across logs.   
+// 其它一致性算法里如果新的leader想要复制之前“terms”的entry，它也必须对自己新的“term number”这样做。   
+// Raft的方法使得log entries的逻辑更简单些，因为它们即使随着时间变化也在日志间保持了一致的term编号。   
+
+In addition, new leaders in Raft send fewer log entries from previous terms than in other algorithms (other algorithms must send   
+redundant log entries to renumber them before they can be committed).   
+// 另外比起其它算法Raft中新的leader对于之前的term会发送更少的log entry（其它算法必须发送冗余的log entries来重新编号这些log）。   
 
 
 ##### 5.4.3 Safety argument
